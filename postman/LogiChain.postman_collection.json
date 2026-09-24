@@ -1,0 +1,692 @@
+{
+  "info": {
+    "_postman_id": "79817c26-41f6-46de-b828-c4dd0d742e95",
+    "name": "LogiChain - Grupo 4",
+    "description": "Coleccion de pruebas para los microservicios Inventario, Transporte y Facturacion (574 Desarrollo de Aplicaciones de Vanguardia). Ejecutar con el Collection Runner en orden (de arriba a abajo) usando el Environment 'LogiChain - Local'.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Inventario",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{inventarioUrl}}/health",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Servicio correcto', () => pm.expect(pm.response.json().servicio).to.eql('Inventario'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar bodegas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{inventarioUrl}}/bodegas",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Es un arreglo con al menos 2 bodegas', () => { pm.expect(body).to.be.an('array'); pm.expect(body.length).to.be.at.least(2); });",
+                  "const origen = body.find(b => b.codigo === 'BOD-01') || body[0];",
+                  "const destino = body.find(b => b.codigo === 'BOD-02') || body[1];",
+                  "pm.environment.set('bodegaOrigenId', origen.id);",
+                  "pm.environment.set('bodegaDestinoId', destino.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Obtener bodega por id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{inventarioUrl}}/bodegas/{{bodegaOrigenId}}",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Tiene el id esperado', () => pm.expect(pm.response.json().id).to.eql(Number(pm.environment.get('bodegaOrigenId'))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar productos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{inventarioUrl}}/productos",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Es un arreglo con al menos 1 producto', () => { pm.expect(body).to.be.an('array'); pm.expect(body.length).to.be.at.least(1); });",
+                  "pm.environment.set('productoId', body[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar stock por bodega y producto",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{inventarioUrl}}/bodegas/{{bodegaOrigenId}}/stock/{{productoId}}",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Respuesta tiene la forma esperada', () => { pm.expect(body).to.have.property('bodegaId'); pm.expect(body).to.have.property('productoId'); pm.expect(body).to.have.property('cantidad'); });",
+                  "pm.environment.set('stockInicial', body.cantidad);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar salida mayor al stock (R1: debe rechazar)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{inventarioUrl}}/movimientos-stock",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"solicitudId\": \"{{$guid}}\",\n  \"tipo\": \"Salida\",\n  \"productoId\": \"{{productoId}}\",\n  \"bodegaOrigenId\": \"{{bodegaOrigenId}}\",\n  \"cantidad\": 999999\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409 - saldo insuficiente', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar salida válida (R1 dentro del saldo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{inventarioUrl}}/movimientos-stock",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"solicitudId\": \"{{$guid}}\",\n  \"tipo\": \"Salida\",\n  \"productoId\": \"{{productoId}}\",\n  \"bodegaOrigenId\": \"{{bodegaOrigenId}}\",\n  \"cantidad\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('Respuesta tiene id y detalles', () => { pm.expect(body).to.have.property('id'); pm.expect(body.detalles).to.be.an('array'); });",
+                  "pm.environment.set('movimientoId', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Obtener movimiento por id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{inventarioUrl}}/movimientos-stock/{{movimientoId}}",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('El id coincide', () => pm.expect(pm.response.json().id).to.eql(pm.environment.get('movimientoId')));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Transporte",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{transporteUrl}}/health",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Servicio correcto', () => pm.expect(pm.response.json().servicio).to.eql('Transporte'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar rutas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{transporteUrl}}/rutas",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Es un arreglo con al menos 1 ruta activa', () => { pm.expect(body).to.be.an('array'); pm.expect(body.length).to.be.at.least(1); });",
+                  "pm.environment.set('rutaId', body.find(r => r.activa).id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear envío A (para completar el flujo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{transporteUrl}}/envios",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rutaId\": \"{{rutaId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('Estado inicial Pendiente', () => pm.expect(body.estado).to.eql('Pendiente'));",
+                  "pm.environment.set('envioAId', body.id);",
+                  "pm.environment.set('envioAVersion', body.version);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear envío B (para probar rechazos)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{transporteUrl}}/envios",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rutaId\": \"{{rutaId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('envioBId', body.id);",
+                  "pm.environment.set('envioBVersion', body.version);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Envío B: saltar de Pendiente a Entregado (R3: debe rechazar)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{transporteUrl}}/envios/{{envioBId}}/estado",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"Entregado\",\n  \"version\": \"{{envioBVersion}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409 - transición inválida', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Envío A: pasar a EnTransito",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{transporteUrl}}/envios/{{envioAId}}/estado",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"EnTransito\",\n  \"version\": \"{{envioAVersion}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Estado actualizado', () => pm.expect(body.estado).to.eql('EnTransito'));",
+                  "pm.environment.set('envioAVersion', body.version);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Envío A: pasar a Entregado",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{transporteUrl}}/envios/{{envioAId}}/estado",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"Entregado\",\n  \"version\": \"{{envioAVersion}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Estado actualizado a Entregado', () => pm.expect(body.estado).to.eql('Entregado'));",
+                  "pm.environment.set('envioAVersion', body.version);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Obtener envío A por id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{transporteUrl}}/envios/{{envioAId}}",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Confirma estado Entregado', () => pm.expect(pm.response.json().estado).to.eql('Entregado'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Facturacion",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{facturacionUrl}}/health",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Servicio correcto', () => pm.expect(pm.response.json().servicio).to.eql('Facturacion'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Facturar envío B (no entregado) - R4: debe rechazar",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{facturacionUrl}}/api/v1/facturas",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"envioId\": \"{{envioBId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409 - no entregado', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Facturar envío A (entregado)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{facturacionUrl}}/api/v1/facturas",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"envioId\": \"{{envioAId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('Respuesta tiene numero y total', () => { pm.expect(body).to.have.property('numero'); pm.expect(body).to.have.property('total'); });",
+                  "pm.environment.set('facturaId', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Facturar envío A otra vez - R5: debe rechazar",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{facturacionUrl}}/api/v1/facturas",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"envioId\": \"{{envioAId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409 - ya facturado', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar todas las facturas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{facturacionUrl}}/api/v1/facturas",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Es un arreglo', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar facturas filtradas por envioId",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{facturacionUrl}}/api/v1/facturas?envioId={{envioAId}}",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Solo trae facturas de ese envío', () => { pm.expect(body).to.be.an('array'); body.forEach(f => pm.expect(f.envioId).to.eql(pm.environment.get('envioAId'))); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Obtener factura por id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{facturacionUrl}}/api/v1/facturas/{{facturaId}}",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('El id coincide', () => pm.expect(pm.response.json().id).to.eql(pm.environment.get('facturaId')));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
